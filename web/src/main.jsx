@@ -3,6 +3,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 
+
 // Importa os estilos obrigatórios do Mantine
 import '@mantine/core/styles.css';
 

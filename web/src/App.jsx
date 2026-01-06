@@ -1,14 +1,28 @@
-import { Button, Container, Text, Title } from '@mantine/core';
+
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { MantineProvider } from '@mantine/core';
+import MainLayout from './layouts/MainLayout';
+import { HomeScreen } from './features/home/HomeScreen';
+import NovaManifestacao from './features/manifestacao/pages/NovaManifestacao'; 
 
 function App() {
   return (
-    <Container style={{ textAlign: 'center', marginTop: '50px' }}>
-      <Title order={1} style={{ color: '#0056b3' }}>Participa DF</Title>
-      <Text size="lg" mt="md">Sistema de Ouvidoria Integrada</Text>
-      <Button mt="xl" size="lg" color="blue">
-        Nova Manifestação
-      </Button>
-    </Container>
+    <MantineProvider withGlobalStyles withNormalizeCSS>
+      <BrowserRouter>
+        <Routes>
+          {/* ROTA PAI: Define que tudo vai usar o MainLayout */}
+          <Route path="/" element={<MainLayout />}>
+            
+            {/* ROTA FILHA 1: "index" significa a página inicial (/) */}
+            <Route index element={<HomeScreen />} />
+
+            {/* ROTA FILHA 2: A página de cadastro (/nova-manifestacao) */}
+            <Route path="nova-manifestacao" element={<NovaManifestacao />} />
+
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </MantineProvider>
   );
 }
 
