@@ -5,6 +5,8 @@ import MainLayout from './layouts/MainLayout';
 import { HomeScreen } from './features/home/HomeScreen';
 import NovaManifestacao from './features/manifestacao/pages/NovaManifestacao'; 
 import ConsultarManifestacao from './features/manifestacao/pages/ConsultarManifestacao';
+import EfetuarLogin from './features/login/EfetuarLogin';
+import EsqueciSenha from './features/login/EsqueciSenha';
 
 function App() {
   return (
@@ -21,7 +23,10 @@ function App() {
             <Route path="nova-manifestacao" element={<NovaManifestacao />} />
 
             <Route path="consultar-relato" element={<ConsultarManifestacao />} />
-
+            
+            <Route path="efetuar-login" element={<EfetuarLogin />} />
+            <Route path="esqueci-senha" element={<EsqueciSenha />} />
+            
           </Route>
         </Routes>
       </BrowserRouter>

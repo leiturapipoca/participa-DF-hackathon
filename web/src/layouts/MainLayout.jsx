@@ -62,11 +62,12 @@ export default function MainLayout() {
               backgroundColor: 'rgba(255,255,255,0.15)',
             },
           }}
-          onClick={() => navigate('/nova-manifestacao')}
+          onClick={() => navigate('/efetuar-login')}
         >
-          Nova Manifestação
+          Entrar
         </Button>
         
+
       </Group>
     </Container>
   </AppShell.Header>
