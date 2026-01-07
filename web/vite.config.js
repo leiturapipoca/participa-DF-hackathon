@@ -15,18 +15,18 @@ export default defineConfig({
         name: 'Participa DF - Ouvidoria',
         short_name: 'Participa DF',
         description: 'Faça sua manifestação de ouvidoria de forma rápida e segura.',
-        theme_color: '#0056b3', // Cor oficial do GDF (aproximada)
+        theme_color: '#0056b3', 
         background_color: '#ffffff',
-        display: 'standalone', // Faz parecer app nativo (sem barra de URL)
+        display: 'standalone', 
         icons: [
           {
-            src: 'pwa-192x192.png',
-            sizes: '192x192',
+            src: 'pwa-772x604.png',
+            sizes: '772x604',
             type: 'image/png'
           },
           {
-            src: 'pwa-512x512.png',
-            sizes: '512x512',
+            src: 'pwa-255x255.png',
+            sizes: '225x225',
             type: 'image/png'
           }
         ]
