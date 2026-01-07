@@ -66,6 +66,7 @@ export default function MainLayout() {
         >
           Nova Manifestação
         </Button>
+        
       </Group>
     </Container>
   </AppShell.Header>

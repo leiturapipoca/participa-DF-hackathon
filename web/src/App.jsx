@@ -4,6 +4,7 @@ import { MantineProvider } from '@mantine/core';
 import MainLayout from './layouts/MainLayout';
 import { HomeScreen } from './features/home/HomeScreen';
 import NovaManifestacao from './features/manifestacao/pages/NovaManifestacao'; 
+import ConsultarManifestacao from './features/manifestacao/pages/ConsultarManifestacao';
 
 function App() {
   return (
@@ -18,6 +19,8 @@ function App() {
 
             {/* ROTA FILHA 2: A página de cadastro (/nova-manifestacao) */}
             <Route path="nova-manifestacao" element={<NovaManifestacao />} />
+
+            <Route path="consultar-relato" element={<ConsultarManifestacao />} />
 
           </Route>
         </Routes>
