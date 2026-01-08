@@ -28,8 +28,10 @@ export default function EfetuarLogin() {
       
       <Text color="dimmed" size="sm" align="center" mt={5}>
         Acesse sua conta do Participa DF ou{' '}
-        <Anchor size="sm" component="button" color="blue">
+        <Anchor size="sm" component="button" color="blue"
+        onClick={() => navigate('/criar-conta')}>
           crie uma conta
+          
         </Anchor>
       </Text>
 
