@@ -25,7 +25,7 @@ export function HomeScreen() {
         mt="xl" 
         size="lg" 
         color="blue" 
-        onClick={() => navigate('/nova-manifestacao')}
+        onClick={() => navigate('/relato')}
       >
         Nova Manifestação
       </Button>
