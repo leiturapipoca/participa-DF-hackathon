@@ -145,6 +145,14 @@ export default function RelatoManifestacao() {
               onChange={(e) => handleInput('relato', e.target.value)}
               required
             />
+            <Alert title="As denúncias registradas no Participa DF são tratadas com sigilo absoluto da identidade do denunciante, 
+            conforme determina o art. 23 do Decreto nº 36.462/2015" color="blue" variant="light" mb="md">
+              <List size="sm" spacing="xs">
+                <List.Item>Nenhuma informação pessoal do denunciante pode ser compartilhada;</List.Item>
+                <List.Item>O sigilo é obrigatório, mesmo dentro dos órgãos públicos;</List.Item>
+                <List.Item>O descumprimento dessas regras pode gerar responsabilização administrativa, civil e penal</List.Item>
+              </List>
+            </Alert>
           </Paper>
         </Stepper.Step>
 
@@ -182,9 +190,7 @@ export default function RelatoManifestacao() {
                 <Button variant="outline" onClick={() => setMapaAberto(true)}>
                   Sim, quero selecionar no mapa
                 </Button>
-                <Button variant="subtle" color="gray">
-                  Não creio que seja necessário
-                </Button>
+                
               </Group>
             )}
 
