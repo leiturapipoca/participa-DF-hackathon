@@ -1,18 +1,14 @@
-//NOTA IMPORTANTE: Por enquanto a lógica do mapa está no mesmo arquivo da criação de relato,
-// mas cpa o ideal seria separar, apesar de que só é usado aqui
-// oh duvida cruel
-
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Container, Paper, Title, Text, Stepper, Button, Group, Textarea, 
   Select, Switch, FileInput, Alert, List, Box, Divider, Blockquote, 
-  Modal, LoadingOverlay, Badge 
+  Modal, Badge, ActionIcon, Tooltip, Loader, Popover // <--- Adicionado Popover
 } from '@mantine/core';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css'; //importante
-import L from 'leaflet';//corrige alguns pequenos bugs
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 
@@ -24,11 +20,10 @@ let DefaultIcon = L.icon({
 });
 L.Marker.prototype.options.icon = DefaultIcon;
 
-//Captura o clique no mapa
+// --- COMPONENTE DO MAPA ---
 function LocationMarker({ setPosicao, fecharModal }) {
   const [position, setPosition] = useState(null);
   
-  // Tenta pegar a localização do usuário ao abrir o mapa
   useEffect(() => {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -37,41 +32,49 @@ function LocationMarker({ setPosicao, fecharModal }) {
       }, 
       (err) => {
         console.error(err);
-        //foca em Brasília por padrão
         setPosition([-15.7975, -47.8919]); 
       }
     );
   }, []);
 
-  // Evento de clique no mapa
   useMapEvents({
     click(e) {
-      setPosicao(e.latlng); // Salva no estado principal
-      setPosition(e.latlng); // Atualiza o marcador visual
-      // Pequeno delay para o usuário ver onde clicou antes de fechar
+      setPosicao(e.latlng);
+      setPosition(e.latlng);
       setTimeout(() => fecharModal(), 500); 
     },
   });
 
-  return position === null ? null : (
-    <Marker position={position}></Marker>
-  );
+  return position === null ? null : <Marker position={position}></Marker>;
 }
-
 
 export default function RelatoManifestacao() {
   const navigate = useNavigate();
   const [active, setActive] = useState(0);
   const [mapaAberto, setMapaAberto] = useState(false);
+  
+  // --- ESTADOS DE ÁUDIO ---
+  const [ouvindoDitado, setOuvindoDitado] = useState(false);
+  const [lendo, setLendo] = useState(false);
+  const recognitionRef = useRef(null);
+
+  const [gravandoAudio, setGravandoAudio] = useState(false);
+  const [audioURL, setAudioURL] = useState(null);
+  const [audioBlob, setAudioBlob] = useState(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+
+  const [preferenciaAudio, setPreferenciaAudio] = useState(false);
+
   const [dados, setDados] = useState({
     relato: '',
     assunto: '',
-    localizacao: null, // indica latitude e longitude
+    localizacao: null,
     anonimo: false,
     arquivo: null,
     protocoloGerado: '' 
   });
-  //valores placeholder, no site são bem mais coisas
+
   const listaAssuntos = [ 
     { value: 'saude', label: 'Saúde / Hospitais' },
     { value: 'educacao', label: 'Educação / Escolas' },
@@ -91,28 +94,124 @@ export default function RelatoManifestacao() {
     setDados(prev => ({ ...prev, [campo]: valor }));
   };
 
-  const nextStep = () => {
-    if (active === 0 && dados.relato.trim().length < 10) {
-      alert("Por favor, descreva o relato com mais detalhes.");
+  // --- FUNÇÃO 1: DITADO ---
+  const toggleDitado = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Seu navegador não suporta ditado por voz. Tente usar o Google Chrome.");
       return;
+    }
+
+    if (ouvindoDitado) {
+      recognitionRef.current.stop();
+      setOuvindoDitado(false);
+    } else {
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'pt-BR';
+      recognition.continuous = true;
+      recognition.interimResults = true;
+
+      recognition.onresult = (event) => {
+        let transcript = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+            if(event.results[i].isFinal){
+                transcript += event.results[i][0].transcript + ' ';
+            }
+        }
+        if (transcript) {
+            handleInput('relato', dados.relato + transcript);
+        }
+      };
+
+      recognition.start();
+      recognitionRef.current = recognition;
+      setOuvindoDitado(true);
+    }
+  };
+
+  // --- FUNÇÃO 2: LER O TEXTO ---
+  const lerTexto = () => {
+    if (lendo) {
+      window.speechSynthesis.cancel();
+      setLendo(false);
+      return;
+    }
+    if (!dados.relato) {
+      alert("Não há texto para ler.");
+      return;
+    }
+    const utterance = new SpeechSynthesisUtterance(dados.relato);
+    utterance.lang = 'pt-BR';
+    utterance.onend = () => setLendo(false);
+    window.speechSynthesis.speak(utterance);
+    setLendo(true);
+  };
+
+  // --- FUNÇÃO 3: GRAVADOR ---
+  const iniciarGravacao = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const url = URL.createObjectURL(blob);
+        setAudioBlob(blob);
+        setAudioURL(url);
+      };
+
+      mediaRecorder.start();
+      setGravandoAudio(true);
+    } catch (err) {
+      alert("Erro ao acessar microfone. Verifique as permissões.");
+      console.error(err);
+    }
+  };
+
+  const pararGravacao = () => {
+    if (mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+      setGravandoAudio(false);
+    }
+  };
+
+  const descartarAudio = () => {
+    setAudioBlob(null);
+    setAudioURL(null);
+  };
+
+  // --- NAVEGAÇÃO ---
+  const nextStep = () => {
+    if (active === 0) {
+        if (!preferenciaAudio && dados.relato.trim().length < 10) {
+            alert("Por favor, descreva o relato ou selecione a opção de gravar áudio posteriormente.");
+            return;
+        }
     }
     if (active === 1 && !dados.assunto) {
       alert("Por favor, selecione um assunto.");
       return;
     }
-    
     if (active === 4) {
-      gerarProtocolo();
+        if (preferenciaAudio && !audioBlob && !dados.arquivo) {
+            alert("Como você optou por não escrever, é OBRIGATÓRIO gravar um áudio ou anexar um arquivo.");
+            return;
+        }
+        const numero = `2026.${Math.floor(Math.random() * 100000)}-OV`;
+        handleInput('protocoloGerado', numero);
     }
     setActive((current) => (current < 5 ? current + 1 : current));
   };
 
   const prevStep = () => setActive((current) => (current > 0 ? current - 1 : current));
-
-  const gerarProtocolo = () => { //CLARAMENTE UM PLACEHOLDER 
-    const numero = `2026.${Math.floor(Math.random() * 100000)}-OV`;
-    handleInput('protocoloGerado', numero);
-  };
 
   return (
     <Container size="xl" my={40}>
@@ -130,55 +229,119 @@ export default function RelatoManifestacao() {
         {/* 1. RELATO */}
         <Stepper.Step label="Relato" description="Detalhes">
           <Paper withBorder shadow="sm" p="md" radius="md" mt="xl">
-            <Alert title="Dicas de preenchimento" color="blue" variant="light" mb="md">
-              <List size="sm" spacing="xs">
-                <List.Item>O que ocorreu?</List.Item>
-                <List.Item>Quem são os envolvidos?</List.Item>
-                <List.Item>Onde e quando aconteceu?</List.Item>
-              </List>
-            </Alert>
+            
+            <Group position="apart" mb="md">
+                <Alert title="Dicas" color="blue" variant="light" style={{flex: 1}}>
+                   <List size="sm">
+                     <List.Item>O que ocorreu e onde?</List.Item>
+                     <List.Item>Quem são os envolvidos?</List.Item>
+                   </List>
+                </Alert>
+                
+                {/* BOTÕES DE DITADO E LEITURA */}
+                <Box>
+                    <Tooltip label="Ditar texto">
+                        <ActionIcon 
+                            size="xl" 
+                            variant={ouvindoDitado ? "filled" : "outline"} 
+                            color={ouvindoDitado ? "red" : "blue"}
+                            onClick={toggleDitado}
+                        >
+                            {ouvindoDitado ? "👂" : "🎤"}
+                        </ActionIcon>
+                    </Tooltip>
+                    
+                    <Tooltip label="Ouvir texto">
+                         <ActionIcon 
+                            size="xl" 
+                            variant={lendo ? "filled" : "outline"} 
+                            color="green" 
+                            onClick={lerTexto}
+                            ml="xs"
+                        >
+                            {lendo ? "⏹️" : "🔊"}
+                        </ActionIcon>
+                    </Tooltip>
+                    <Text size="xs" align="center" mt={4} color="dimmed">
+                        Acessibilidade
+                    </Text>
+                </Box>
+            </Group>
+
             <Textarea
-              placeholder="Escreva aqui seu relato completo..."
+              placeholder="Descreva o ocorrido ou use o microfone acima para falar..."
               label="Descrição do Ocorrido"
               minRows={8}
               value={dados.relato}
               onChange={(e) => handleInput('relato', e.target.value)}
-              required
+              disabled={preferenciaAudio}
+              required={!preferenciaAudio}
             />
-            <Alert title="As denúncias registradas no Participa DF são tratadas com sigilo absoluto da identidade do denunciante, 
-            conforme determina o art. 23 do Decreto nº 36.462/2015" color="blue" variant="light" mb="md">
-              <List size="sm" spacing="xs">
-                <List.Item>Nenhuma informação pessoal do denunciante pode ser compartilhada;</List.Item>
-                <List.Item>O sigilo é obrigatório, mesmo dentro dos órgãos públicos;</List.Item>
-                <List.Item>O descumprimento dessas regras pode gerar responsabilização administrativa, civil e penal</List.Item>
-              </List>
-            </Alert>
+
+            {/* --- NOVA ÁREA DE AVISO LEGAL (LIMPA E COM POPOVER) --- */}
+            <Group position="right" mt="xs">
+                <Popover width={350} position="bottom-end" withArrow shadow="md">
+                    <Popover.Target>
+                        <Button variant="subtle" compact size="xs" color="gray" style={{ fontWeight: 400 }}>
+                            ℹ️ Informações importantes sobre Sigilo (Art. 23)
+                        </Button>
+                    </Popover.Target>
+                    <Popover.Dropdown sx={{ backgroundColor: '#f8f9fa' }}>
+                        <Text size="sm" weight={700} color="dark" mb="xs">
+                            Decreto nº 36.462/2015 - Regras de Sigilo
+                        </Text>
+                        <List size="xs" spacing={5} type="ordered">
+                            <List.Item>A identidade do denunciante é tratada com sigilo absoluto.</List.Item>
+                            <List.Item>É proibido compartilhar seus dados pessoais com o órgão denunciado.</List.Item>
+                            <List.Item>O sigilo é obrigatório, mesmo dentro dos órgãos públicos.</List.Item>
+                            <List.Item>O descumprimento gera responsabilização administrativa, civil e penal.</List.Item>
+                        </List>
+                    </Popover.Dropdown>
+                </Popover>
+            </Group>
+
+            <Divider my="md" label="OU" labelPosition="center" />
+
+            {/* BOTÃO PARA PULAR TEXTO */}
+            <Paper withBorder p="sm" sx={{ backgroundColor: preferenciaAudio ? '#e7f5ff' : 'transparent', borderColor: preferenciaAudio ? '#1c7ed6' : '#dee2e6' }}>
+                <Group position="apart">
+                    <Box>
+                        <Text weight={700} size="sm">Prefere falar ao invés de escrever?</Text>
+                        <Text size="xs" color="dimmed">Você poderá gravar um áudio na etapa de Anexos.</Text>
+                    </Box>
+                    <Button 
+                        variant={preferenciaAudio ? "filled" : "outline"}
+                        color={preferenciaAudio ? "blue" : "gray"}
+                        onClick={() => {
+                            setPreferenciaAudio(!preferenciaAudio);
+                            if(!preferenciaAudio) handleInput('relato', '');
+                        }}
+                    >
+                        {preferenciaAudio ? "Vou escrever o texto" : "Pular e gravar áudio depois"}
+                    </Button>
+                </Group>
+            </Paper>
           </Paper>
         </Stepper.Step>
 
-        {/* 2. ASSUNTO E LOCALIZAÇÃO */}
+        {/* 2. ASSUNTO E MAPA */}
         <Stepper.Step label="Assunto" description="Classificação">
           <Paper withBorder shadow="sm" p="md" radius="md" mt="xl">
-            <Text mb="xs" weight={500}>Qual área melhor descreve o seu problema?</Text>
             <Select
+              label="Assunto Principal"
               placeholder="Selecione uma opção"
               data={listaAssuntos}
               value={dados.assunto}
               onChange={(val) => handleInput('assunto', val)}
               required
-              mb="xl"
             />
-
             <Divider my="lg" />
-            
-            {/* SEÇÃO DE GEOLOCALIZAÇÃO */}
             <Text weight={700} size="sm" mb="xs">A identificação do local ajudaria na resolução do problema?</Text>
-            
             {dados.localizacao ? (
                <Alert color="green" title="Local Definido" variant="filled" mb="md">
                  <Group position="apart">
                     <Text size="sm">
-                      Latitude: {dados.localizacao.lat.toFixed(4)}, Longitude: {dados.localizacao.lng.toFixed(4)}
+                      Lat: {dados.localizacao.lat.toFixed(4)}, Lng: {dados.localizacao.lng.toFixed(4)}
                     </Text>
                     <Button color="white" variant="outline" size="xs" onClick={() => handleInput('localizacao', null)}>
                       Remover
@@ -190,37 +353,36 @@ export default function RelatoManifestacao() {
                 <Button variant="outline" onClick={() => setMapaAberto(true)}>
                   Sim, quero selecionar no mapa
                 </Button>
-                
               </Group>
             )}
-
           </Paper>
         </Stepper.Step>
 
-        {/* 3. RESUMO (REVISÃO) */}
+        {/* 3. RESUMO */}
         <Stepper.Step label="Resumo" description="Revisão">
           <Paper withBorder shadow="sm" p="md" radius="md" mt="xl">
             <Title order={4} mb="md" color="dimmed">Confira os dados:</Title>
-            
             <Box mb="md">
               <Text size="sm" weight={700} color="blue">Assunto:</Text>
               <Text>{getNomeAssunto(dados.assunto)}</Text>
             </Box>
-
             {dados.localizacao && (
                <Box mb="md">
                  <Text size="sm" weight={700} color="blue">Localização:</Text>
-                 <Badge color="green" size="lg">Localização Geográfica Anexada</Badge>
-                 <Text size="xs" color="dimmed">Lat: {dados.localizacao.lat} / Lng: {dados.localizacao.lng}</Text>
+                 <Badge color="green" size="lg">Anexada</Badge>
+                 <Text size="xs" color="dimmed">Lat: {dados.localizacao.lat.toFixed(4)}</Text>
                </Box>
             )}
-
             <Divider my="sm" />
             <Box>
               <Text size="sm" weight={700} color="blue" mb="xs">Relato:</Text>
-              <Blockquote cite="Texto inserido no passo 1">
-                {dados.relato}
-              </Blockquote>
+              {preferenciaAudio ? (
+                  <Badge size="lg" color="orange">Será enviado por Áudio (Ver Anexos)</Badge>
+              ) : (
+                  <Blockquote cite="Texto do passo 1">
+                    {dados.relato || "Sem texto."}
+                  </Blockquote>
+              )}
             </Box>
           </Paper>
         </Stepper.Step>
@@ -242,9 +404,55 @@ export default function RelatoManifestacao() {
           </Paper>
         </Stepper.Step>
 
-        {/* 5. ANEXO */}
-        <Stepper.Step label="Anexo" description="Arquivos">
+        {/* 5. ANEXO E GRAVAÇÃO */}
+        <Stepper.Step label="Anexo" description="Arquivos/Áudio">
           <Paper withBorder shadow="sm" p="md" radius="md" mt="xl">
+            
+            <Text size="lg" weight={700} mb="sm">Gravar Relato em Áudio</Text>
+            <Paper p="md" withBorder sx={{ backgroundColor: '#f1f3f5' }} mb="xl">
+                {audioURL ? (
+                    <Box>
+                        <Group position="center" mb="sm">
+                            <audio src={audioURL} controls style={{ width: '100%' }} />
+                        </Group>
+                        <Group position="center">
+                             <Button color="red" variant="subtle" onClick={descartarAudio}>
+                                🗑️ Descartar
+                             </Button>
+                             <Badge color="green" size="lg">✅ Áudio Gravado</Badge>
+                        </Group>
+                    </Box>
+                ) : (
+                    <Box textAlign="center">
+                        <Text size="sm" mb="md" align="center">
+                            Clique no botão abaixo para iniciar a gravação.
+                        </Text>
+                        <Group position="center">
+                            {gravandoAudio ? (
+                                <Button 
+                                    color="red" 
+                                    size="lg" 
+                                    onClick={pararGravacao}
+                                >
+                                    🔴 Parar
+                                </Button>
+                            ) : (
+                                <Button 
+                                    color="blue" 
+                                    size="lg" 
+                                    onClick={iniciarGravacao}
+                                >
+                                    🎙️ Gravar Áudio
+                                </Button>
+                            )}
+                        </Group>
+                        {gravandoAudio && <Text color="red" align="center" mt="sm" weight={700}>Gravando...</Text>}
+                    </Box>
+                )}
+            </Paper>
+
+            <Divider my="xl" label="OU ANEXAR ARQUIVO" labelPosition="center" />
+
             <FileInput
               label="Anexar Arquivo (Opcional)"
               placeholder="Clique para selecionar"
@@ -273,25 +481,14 @@ export default function RelatoManifestacao() {
       <Modal 
         opened={mapaAberto} 
         onClose={() => setMapaAberto(false)}
-        title="Selecione o local do ocorrido"
+        title="Selecione o local"
         size="lg"
       >
-        <Text size="sm" mb="md" color="dimmed">
-          Clique no mapa para marcar o ponto exato. O mapa tentará iniciar na sua localização atual.
-        </Text>
-        
-        {/* Container do Mapa */}
         <div style={{ height: '400px', width: '100%' }}>
             {mapaAberto && (
                 <MapContainer center={[-15.7975, -47.8919]} zoom={13} style={{ height: '100%', width: '100%' }}>
-                    <TileLayer
-                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                    />
-                    <LocationMarker 
-                        setPosicao={(pos) => handleInput('localizacao', pos)} 
-                        fecharModal={() => setMapaAberto(false)}
-                    />
+                    <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; OpenStreetMap' />
+                    <LocationMarker setPosicao={(pos) => handleInput('localizacao', pos)} fecharModal={() => setMapaAberto(false)} />
                 </MapContainer>
             )}
         </div>
