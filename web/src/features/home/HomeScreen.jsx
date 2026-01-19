@@ -27,7 +27,7 @@ export function HomeScreen() {
         color="blue" 
         onClick={() => navigate('/relato')}
       >
-        Nova Manifestação
+        Nova Manifestaçãos
       </Button>
       <Button
       mt = "xl"

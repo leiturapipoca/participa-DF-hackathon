@@ -1,14 +1,13 @@
-
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { MantineProvider } from '@mantine/core';
-import MainLayout from './layouts/MainLayout';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { HomeScreen } from './features/home/HomeScreen';
+import MainLayout from './layouts/MainLayout';
 // import NovaManifestacao from './features/home/NovaManifestacao'; 
 import ConsultarManifestacao from './features/home/ConsultarManifestacao';
+import CadastroCompleto from './features/login/CadastroCompleto';
+import CriarConta from './features/login/CriarConta';
 import EfetuarLogin from './features/login/EfetuarLogin';
 import EsqueciSenha from './features/login/EsqueciSenha';
-import CriarConta from './features/login/CriarConta';
-import CadastroCompleto from './features/login/CadastroCompleto';
 import RelatoManifestacao from './features/manifestacao/RelatoManifestacao';
 
 function App() {
@@ -32,7 +31,7 @@ function App() {
             
           </Route>
         </Routes>
-      </BrowserRouter>
+      </BrowserRouter>      
     </MantineProvider>
   );
 }
